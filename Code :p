@@ -1,0 +1,359 @@
+#include <stdio.h>
+#include<iostream>
+#include <allegro5/allegro.h>
+#include<allegro5\allegro_image.h>
+#include<allegro5\allegro_primitives.h>
+#include<allegro5\allegro_font.h>
+#include<allegro5\allegro_ttf.h>
+#include<ctime>
+using namespace std;
+
+
+const float FPS = 60;
+
+enum MYKEYS {
+	KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_SPACE, KEY_S, KEY_P, KEY_Q, KEY_C, KEY_A,KEY_R
+};
+
+enum gamestates { INTRO, PLAYING, PAUSE, END, BATTLE };
+
+int main()
+{
+	srand(time(NULL));
+	//set up Allegro
+	al_init();
+	al_init_image_addon();
+	al_install_keyboard();
+	al_init_primitives_addon();
+	al_init_font_addon();
+	al_init_ttf_addon();
+
+
+	//ALLEGRO variables
+	ALLEGRO_DISPLAY* display = NULL;
+	ALLEGRO_EVENT_QUEUE* event_queue = NULL;
+	ALLEGRO_TIMER* timer = NULL;
+	ALLEGRO_BITMAP* map = al_load_bitmap("map.png");
+	ALLEGRO_BITMAP* blueTre = al_load_bitmap("tre.png");
+	ALLEGRO_BITMAP* isfakell = al_load_bitmap("is.png");
+	ALLEGRO_BITMAP* sword = al_load_bitmap("sword.png");
+	ALLEGRO_BITMAP* end = al_load_bitmap("end.png");
+	ALLEGRO_FONT* font = al_load_font("sponge.ttf", 32, NULL);
+	al_convert_mask_to_alpha(blueTre, al_map_rgb(255, 255, 255)); //sets transparency so white doesn't show up
+	al_convert_mask_to_alpha(sword, al_map_rgb(255, 255, 255));
+	timer = al_create_timer(1.0 / FPS);
+	display = al_create_display(800, 800);
+
+	int TreX = 500;
+	int TreY = 500;
+	int isX = 800;
+	int isY = 800;
+	int attack;
+	bool iskill = false;
+	int swordx = 1800;
+	int swordy = 1100;
+	int player_x = 400; //notice these never change! the map moves behind the player, not the other way around
+	int player_y = 400;
+	int damage=0;
+	int ishealth = 1000;
+	int HP = 100;
+	int weapon = 10;
+	int armor = 5;
+	bool key[] = { false, false, false, false , false, false, false, false, false, false,false };
+	bool redraw = true;
+	bool doexit = false;
+	int gamestate = INTRO;
+	int justFought = 0;
+
+	//CAMERA STUFF------------------------------------------------------------
+	// the screen size (the actual resolution of our display or window)
+	int screenWidth = 800;
+	int screenHeight = 800;
+
+	// the world size
+	int worldWidth = 1920;
+	int worldHeight = 1200;
+
+	// the camera's position
+	int cameraX = 0;
+	int cameraY = 0;
+	//------------------------------------------------------------------------
+
+
+
+
+	//create event queue and set it up to look for close window buttons, timer ticks, and keyboard input
+	event_queue = al_create_event_queue();
+	al_register_event_source(event_queue, al_get_display_event_source(display));
+	al_register_event_source(event_queue, al_get_timer_event_source(timer));
+	al_register_event_source(event_queue, al_get_keyboard_event_source());
+
+
+	al_start_timer(timer);
+
+
+	//game loop
+	while (!doexit)
+	{
+		if (HP <= 0)
+			gamestate = END;
+		ALLEGRO_EVENT ev;
+		al_wait_for_event(event_queue, &ev);
+
+		//timer section////////////////////////////////////////////////////////////////////////////////
+		if (ev.type == ALLEGRO_EVENT_TIMER) {
+			
+			if (gamestate == INTRO && key[KEY_S])
+				gamestate = PLAYING;
+			if (gamestate == PLAYING && key[KEY_P])
+				gamestate = PAUSE;
+			if (gamestate == PLAYING && key[KEY_Q])
+				gamestate = END;
+			if (gamestate == PAUSE && key[KEY_C])
+				gamestate = PLAYING;
+			//timer section for playing//////////
+			if (key[KEY_UP] && cameraY != 0 && player_y == 400) {
+				cameraY -= 5;
+			}
+			else if (key[KEY_UP] && player_y > 0) {
+				player_y -= 5;
+			}
+			if (key[KEY_DOWN] && cameraY < (worldHeight - screenHeight) && player_y == 400) {
+				cameraY += 5;
+			}
+			else if (key[KEY_DOWN] && player_y + 30 < (screenHeight) && cameraY <= (worldHeight - screenHeight)) {
+				player_y += 5;
+			}
+			if (key[KEY_LEFT] && cameraX != 0 && player_x == 385) {
+				cameraX -= 5;
+			}
+			else if (key[KEY_LEFT] && player_x > 0) {
+				player_x -= 5;
+			}
+			if (key[KEY_RIGHT] && cameraX != (worldWidth - screenWidth) && player_x == 400) {
+				cameraX += 5;
+			}
+			else if (key[KEY_RIGHT] && player_x + 30 < (screenWidth) && cameraX <= (worldWidth - screenWidth)) {
+				player_x += 5;
+			}
+
+			if (justFought > 0)
+				justFought--;
+			if (key[KEY_A] && gamestate == BATTLE && justFought ==0) {
+				justFought = 10;
+				damage = rand() % -30 + weapon;
+				cout << "You dealt " << damage << " damage!" << endl;
+				ishealth -= damage;
+				attack = rand() % 80 - armor;
+				if (attack > 0) {
+					cout << "You took " << attack << " damage." << endl;
+					HP -= attack;
+				}
+				else
+					cout << "Your armor blocked the attack!" << endl;
+			}
+			
+			if (key[KEY_R] && gamestate == BATTLE ) {
+				attack = rand() % 80 - armor;
+				if (attack > 0) {
+					cout << "You took " << attack << " damage while escaping." << endl;
+					HP -= attack;
+				}
+				else
+					cout << "Your armor blocked the attack! Got away safely." << endl;
+				int cameraX = 0;
+				int cameraY = 0;
+				gamestate = PLAYING;
+			}
+
+			if (ishealth <= 0) {
+				gamestate = PLAYING;
+				iskill = true;
+			}
+
+			
+			//check if you've collided with tre
+			if (player_x + 30 > TreX - cameraX &&
+				player_x < TreX - cameraX + 100 &&
+				player_y + 30> TreY - cameraY &&
+				player_y < TreY - cameraY + 130) {
+				if (armor < 30) {
+					cout << "Here traveller, take my mustache of protection. I have an extra don't worry."; //normally you'd do something here, like warp somewhere or stop moving
+					armor += 30;
+				}
+				else
+					cout << "Please leave me alone." << endl;
+			}
+			if (player_x + 30 > isX - cameraX &&
+				player_x < isX - cameraX + 175 &&
+				player_y + 30> isY - cameraY &&
+				player_y < isY - cameraY + 230&&gamestate==PLAYING&&iskill==false) {
+				cout << "Up B   "; //normally you'd do something here, like warp somewhere or stop moving
+				gamestate = BATTLE;
+			}
+			if (player_x + 30 > swordx - cameraX &&
+				player_x < swordx - cameraX + 175 &&
+				player_y + 30> swordy - cameraY &&
+				player_y < swordy - cameraY + 230&&weapon<50) {
+				cout << "You got the ultimate sword!   "; //normally you'd do something here, like warp somewhere or stop moving
+				weapon+=50;
+			}
+			//don't let player move off side of map
+			//later we'll make it so the player *does* move once we reach the edge of the moveable map
+			//so you can actually reach the edges of the screen...
+			if (cameraX < 0)
+				cameraX = 0;
+			if (cameraY < 0)
+				cameraY = 0;
+			if (cameraX > worldWidth - screenWidth)
+				cameraX = worldWidth - screenWidth;
+			if (cameraY > worldHeight - screenHeight)
+				cameraY = worldHeight - screenHeight;
+
+
+			redraw = true;
+		}//end timer seciton////////////////////////////////////////////////////////////////////////
+
+
+		//IO sections///////////////////////////////////////////////////////////////////////////////
+		else if (ev.type == ALLEGRO_EVENT_DISPLAY_CLOSE) {
+			break;
+		}
+		else if (ev.type == ALLEGRO_EVENT_KEY_DOWN) {
+			switch (ev.keyboard.keycode) {
+			case ALLEGRO_KEY_UP:
+				key[KEY_UP] = true;
+				break;
+
+			case ALLEGRO_KEY_DOWN:
+				key[KEY_DOWN] = true;
+				break;
+
+			case ALLEGRO_KEY_LEFT:
+				key[KEY_LEFT] = true;
+				break;
+
+			case ALLEGRO_KEY_RIGHT:
+				key[KEY_RIGHT] = true;
+				break;
+			case ALLEGRO_KEY_S:
+				key[KEY_S] = true;
+				break;
+			case ALLEGRO_KEY_P:
+				key[KEY_P] = true;
+				break;
+			case ALLEGRO_KEY_Q:
+				key[KEY_Q] = true;
+				break;
+			case ALLEGRO_KEY_C:
+				key[KEY_C] = true;
+				break;
+			case ALLEGRO_KEY_A:
+				key[KEY_A] = true;
+				break;
+			case ALLEGRO_KEY_R:
+				key[KEY_R] = true;
+				break;
+			case ALLEGRO_KEY_SPACE:
+				key[KEY_SPACE] = true;
+				break;
+			}
+		}
+		else if (ev.type == ALLEGRO_EVENT_KEY_UP) {
+			switch (ev.keyboard.keycode) {
+			case ALLEGRO_KEY_UP:
+				key[KEY_UP] = false;
+				break;
+
+			case ALLEGRO_KEY_DOWN:
+				key[KEY_DOWN] = false;
+				break;
+
+			case ALLEGRO_KEY_LEFT:
+				key[KEY_LEFT] = false;
+				break;
+
+			case ALLEGRO_KEY_RIGHT:
+				key[KEY_RIGHT] = false;
+				break;
+			case ALLEGRO_KEY_A:
+				key[KEY_A] = false;
+				break;
+			case ALLEGRO_KEY_R:
+				key[KEY_R] = false;
+				break;
+
+			case ALLEGRO_KEY_ESCAPE:
+				doexit = true;
+				break;
+			case ALLEGRO_KEY_S:
+				key[KEY_S] = false;
+				break;
+			case ALLEGRO_KEY_P:
+				key[KEY_P] = false;
+				break;
+			case ALLEGRO_KEY_Q:
+				key[KEY_Q] = false;
+				break;
+			case ALLEGRO_KEY_C:
+				key[KEY_C] = false;
+				break;
+
+			
+			case ALLEGRO_KEY_SPACE:
+				key[KEY_SPACE] = false;
+				break;
+			}
+		}
+		//////////////////////////////////////////////////////////////////////////////////////////
+
+
+		//render section/////////////////////////////////////////////////////////////////////////
+		if (redraw && al_is_event_queue_empty(event_queue)) {
+			redraw = false;
+
+			al_clear_to_color(al_map_rgb(0, 0, 0));
+
+			//the map and anything stuck to it needs to have the "camera" subtracted from it
+			if (gamestate == PLAYING) {
+				al_draw_bitmap(map, -cameraX, -cameraY, NULL);
+				al_draw_bitmap(blueTre, 500 - cameraX, 500 - cameraY, NULL);
+				
+				if(weapon<50)
+				al_draw_bitmap(sword, 1800 - cameraX, 1100 - cameraY, NULL);
+				//player
+				al_draw_filled_rectangle(player_x, player_y, player_x + 30, player_y + 30, al_map_rgb(255, 0, 255));
+			}
+			if(iskill==false&&gamestate==PLAYING)
+			al_draw_bitmap(isfakell, 800 - cameraX, 800 - cameraY, NULL);
+			//intro render
+			if (gamestate == INTRO) {
+				al_draw_text(font, al_map_rgb(255, 255, 20), 0, 0, NULL, "press s to start");
+				al_draw_filled_circle(200, 200, 50, al_map_rgb(250, 50, 200));
+			}
+			//pause screen
+			if (gamestate == PAUSE) {
+				al_draw_text(font, al_map_rgb(255, 255, 20), 0, 50, NULL, "paused. press c to continue.");
+				al_draw_filled_circle(200, 200, 50, al_map_rgb(50, 250, 200));
+			}
+			if (gamestate == BATTLE) {
+				al_draw_text(font, al_map_rgb(255, 255, 20), 0, 50, NULL, "Battle! Press 'a' to attack or r to run.");
+				al_draw_bitmap(isfakell, 300, 350, NULL);
+			
+			}
+
+			if (gamestate == END) {
+				//put sad picture here
+				al_draw_bitmap(end, 550 - cameraX, 500 - cameraY, NULL);
+			}
+
+			al_flip_display();
+		}//end render///////////////////////////////////////////////////////////////////////////////
+	}//end game loop
+
+	al_destroy_timer(timer);
+	al_destroy_display(display);
+	al_destroy_event_queue(event_queue);
+
+	return 0;
+}
